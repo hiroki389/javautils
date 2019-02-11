@@ -110,7 +110,13 @@ endfunction
 function! javautils#exe()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
-    let cmd= s:getjavaexe() . ' ' . expand('%:p:t:r')
+    let package=filter(readfile(expand('%:p')),{_,x->x =~ '\v^\s*package\s+'})
+    let package=matchstr(join(package),'\v^\s*package\s+\zs.*\ze\s*;')
+    if package != ''
+        let cmd= s:getjavaexe() . ' ' . package . '.' . expand('%:p:t:r')
+    else
+        let cmd= s:getjavaexe() . ' ' . expand('%:p:t:r')
+    endif
     let o=split(system(cmd), "\n")
     let o=map(o, {_,x->iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
