@@ -36,6 +36,9 @@ endif
 if !exists('g:javautils_encodeFrom')
     let g:javautils_encodeFrom       = 'utf-8'
 endif
+if !exists('g:javautils_google_formatter_jar')
+    let g:javautils_google_formatter_jar  = 'google-java-format-1.7-all-deps.jar'
+endif
 if !exists('g:javautils_stepcounter_jar')
     let g:javautils_stepcounter_jar  = 'stepcounter-3.0.4-jar-with-dependencies.jar'
 endif
@@ -52,7 +55,7 @@ command! -bar -nargs=? JMake :call javautils#make({"param":<q-args>})
 command! -bar -nargs=? JMakeDest :call javautils#make({"dest":<q-args>})
 command! JMakeThis :call javautils#make('.')
 command! -nargs=? JExeJunit :JMake <args>|:call javautils#exejunit()
-command! -nargs=? JExe :JMake <args>|:call javautils#exe()
+command! -nargs=* JExe :call javautils#exe(<f-args>)
 command! JInsertImport :call javautils#insertimport(expand('<cword>'))
 command! JAutoImports :call javautils#autoimports()
 command! JLoadPackages :call javautils#loadpackages()
@@ -61,13 +64,14 @@ command! JCheckstyleJava :call javautils#checkstyle()
 command! JFindbugsJava :call javautils#findbugs()
 command! -range JGetterSetter :<line1>,<line2>call javautils#gettersetter()
 command! JSetjavahome :call javautils#setjavahome(<q-args>)
+command! JGoogleFormatter :call javautils#JGoogleFormatter()
 "eclipse.ini
 "-javaagent:/Oracle/oepe/plugins/jp.sourceforge.mergedoc.pleiades/pleiades.jar
 "-Dfile.encoding=utf-8
 command! JCodeFormatter :call javautils#JCodeFormatter()
-command! -nargs=+ JCodeFormatterParam :call javautils#JCodeFormatterParam(<q-args>)
+command! -nargs=+ JCodeFormatterFiles :call javautils#JCodeFormatterFiles(<q-args>)
 command! -nargs=+ JStepCounter :call javautils#JStepCounter(<q-args>)
-command! JStepCounterThis :call javautils#JStepCounterThis()
+command! JStepCounter :call javautils#JStepCounter()
 
 let &cpo = s:cpo_save
 unlet s:cpo_save

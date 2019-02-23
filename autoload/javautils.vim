@@ -107,15 +107,15 @@ function! javautils#exejunit()
         call append (0, o)
     endif
 endfunction
-function! javautils#exe()
+function! javautils#exe(...)
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
     let package=filter(readfile(expand('%:p')),{_,x->x =~ '\v^\s*package\s+'})
     let package=matchstr(join(package),'\v^\s*package\s+\zs.*\ze\s*;')
     if package != ''
-        let cmd= s:getjavaexe() . ' ' . package . '.' . expand('%:p:t:r')
+        let cmd= s:getjavaexe() . ' ' . package . '.' . expand('%:p:t:r') . ' ' . join(a:000)
     else
-        let cmd= s:getjavaexe() . ' ' . expand('%:p:t:r')
+        let cmd= s:getjavaexe() . ' ' . expand('%:p:t:r') . ' ' . join(a:000)
     endif
     let o=split(system(cmd), "\n")
     let o=map(o, {_,x->iconv(x,g:javautils_encodeFrom,s:encodeTo)})
@@ -143,6 +143,9 @@ function! javautils#autoimports()
     let save_cursor = getcurpos()
     let tmp=@a
     let @a=''
+    let list=[]
+    silent g/\v^\s*import/ call add(list,line('.'))
+    exe 'silent ' . min(list) . ',' . max(list) . 'g/^\s*$/ d'
     silent g/\v^\s*import/ yank A
     let imports=split(@a, '\n')
     let @a=tmp
@@ -211,6 +214,9 @@ function! s:cleanimports()
     let save_cursor = getcurpos()
     let tmp=@a
     let @a=''
+    let list=[]
+    silent g/\v^\s*import/ call add(list,line('.'))
+    exe 'silent ' . min(list) . ',' . max(list) . 'g/^\s*$/ d'
     silent g/\v^\s*import/ yank A
     let imports=split(@a,'\n')
     call s:insertimports(imports)
@@ -409,28 +415,48 @@ function! javautils#gettersetter() range
     call cursor(a:lastline+1,0)
     exe 'norm V' . len(ret) . 'j='
 endfunction
-function javautils#JCodeFormatterParam(...)
+function javautils#JCodeFormatterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd = 'eclipse -nosplash -application org.eclipse.jdt.core.JavaCodeFormatter -verbose -config ' . input . 'formatter.prefs ' . join(a:000)
     echom cmd
     echo substitute(system(cmd), "\v[\r\n]+", "\r", "g")
 endfunction
 function javautils#JCodeFormatter()
-    call javautils#JCodeFormatterParam(expand('%:p'))
+    if expand('%:e') != "java" | return | endif
+    call javautils#JCodeFormatterFiles(expand('%:p'))
 endfunction
-function javautils#JStepCounter(...)
+function javautils#JStepCounterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd =s:getjavaexe() . ' -cp ' . input . g:javautils_stepcounter_jar . ' jp.sf.amateras.stepcounter.Main java ' . join(a:000)
     echom cmd
-    let o=map(split(system(s:getjavaexe() . cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('JStepCounter','', s:encodeTo)
         call append(0, o)
         norm gg
     endif
 endfunction
-function javautils#JStepCounterThis()
-    call javautils#JStepCounter(expand('%'))
+function javautils#JGoogleFormatter()
+    if expand('%:e') != "java" | return | endif
+    let input=expand('~') . '/.java/lib/'
+    let cmd =s:getjavaexe() . ' -jar ' . input . g:javautils_google_formatter_jar
+    echom cmd
+    exe '%!' . cmd . ' -'
+endfunction
+function javautils#JGoogleFormatterFiles(...)
+    let input=expand('~') . '/.java/lib/'
+    let cmd =s:getjavaexe() . ' -jar ' . input . g:javautils_google_formatter_jar . ' ' . join(a:000)
+    echom cmd
+    let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if !empty(o)
+        call s:f.newBuffer('JGoogleFormatter','', s:encodeTo)
+        call append(0, o)
+        norm gg
+    endif
+endfunction
+function javautils#JStepCounter()
+    if expand('%:e') != "java" | return | endif
+    call javautils#JStepCounterFiles(expand('%'))
 endfunction
 
 
