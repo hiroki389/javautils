@@ -10,43 +10,50 @@ set cpo&vim
 
 let s:f=javautils#funclib#new()
 let s:javahome=$JAVA_HOME
+let s:javaversion=fnamemodify(s:javahome,':t')
 let s:classpass=fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h')
 let s:encodeTo='utf-8'
 
 function! javautils#setjavahome(javahome)
-    echo a:javahome
     let s:javahome = a:javahome
+    let s:javaversion=fnamemodify(s:javahome,':t')
 endfunction
 function! s:getjavacexe()
-    return shellescape(s:javahome . '/bin/javac')
+    return shellescape(s:javahome . '/bin/javac') . ' -cp ' . shellescape(s:getclasspath())
 endfunction
 function! s:getjavaexe()
-    return shellescape(s:javahome . '/bin/java')
+    return shellescape(s:javahome . '/bin/java') . ' -cp ' . shellescape(s:getclasspath())
 endfunction
 function! s:getclasspath()
     let ret=[]
     call add(ret,'.')
     call add(ret, fnamemodify($JAVA_HOME . '/jre/lib/rt.jar',':p'))
-    call add(ret,fnamemodify(expand('~') . '/.java/classes/',':p:h'))
+    call add(ret,fnamemodify(expand('~') . '/.java/' . s:javaversion . '/classes/',':p:h'))
     call add(ret,s:classpass)
     if exists('g:javautils_classpath')
         call extend(ret,g:javautils_classpath)
     endif
-    return ret
+    let sep=';'
+    if has('win32')
+        let sep = ";"
+    else
+        let sep = ":"
+    endif
+    return join(ret,sep)
 endfunction
 function! s:setclasspath()
-    let $CLASSPATH=join(s:getclasspath(),';')
+    "let $CLASSPATH=s:getclasspath()
 endfunction
 function! javautils#findbugs()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
     let package=matchstr(join(filter(readfile(expand('%:p')),{_,x->x=~'\v^\s*package\s+.+;'})),'\v^\s*package\s+\zs.+\ze;')
-    let dest=expand('~') . '/.java/classes/' . substitute(package,'\.','/','g') . '/'
+    let dest=expand('~') . '/.java/' . s:javaversion . '/classes/' . substitute(package,'\.','/','g') . '/'
     let dest=substitute(dest,'//','/','g')
     let input=expand('~') . '/.java/lib/'
-    call javautils#make({'dest':expand('~') . '/.java/classes/'})
+    call javautils#make({'dest':expand('~') . '/.java/' . s:javaversion . '/classes/'})
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_findbugs_jar . ' -textui -auxclasspath "' . join(s:getclasspath(),';') . '" ' .  dest . expand('%:r') . '.class'
-    echom cmd
+    "echom cmd
     let o=split(system(cmd),"\n")
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
@@ -60,7 +67,7 @@ function! javautils#checkstyle()
     call s:setclasspath()
     let input=expand('~') . '/.java/lib/'
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_checkstyle_jar . ' -c ' . input . 'sun_checks.xml ' . expand('%')
-    echom cmd
+    "echom cmd
     let o=split(system(cmd),"\n")
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
@@ -76,7 +83,7 @@ function! javautils#make(opt)
         let dest='.'
         let param=''
     else
-        let dest=expand('~') . '/.java/classes'
+        let dest=expand('~') . '/.java/' . s:javaversion . '/classes'
         if !empty(get(a:opt,'dest',''))
             let dest=get(a:opt,'dest','')
         endif
@@ -85,9 +92,9 @@ function! javautils#make(opt)
     if !isdirectory(dest)
         call mkdir(dest,"p")
     endif
-    echom param
+    "echom param
     let cmd= s:getjavacexe() . ' ' . param . ' -encoding utf-8 -d ' . dest . ' ' . expand('%')
-    echom cmd
+    "echom cmd
     let o=split(system(cmd),"\n")
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
@@ -149,7 +156,7 @@ function! javautils#autoimports()
     silent g/\v^\s*import/ yank A
     let imports=split(@a, '\n')
     let @a=tmp
-    echom string(mstrlist)
+    "echom string(mstrlist)
     for class in uniq(sort(mstrlist))
         let imp=s:getimport(class, 1)
         if imp!=''
@@ -318,7 +325,7 @@ function! s:insertimports(imports)
             call add(importdict['-'],imp)
         endif
     endfor
-    echom string(importdict)
+    "echom string(importdict)
     let importlist=[]
     for [key,val] in sort(items(javautils_sortdomains),{x,y->x[1] == y[1] ? 0 : x[1] > y[1] ? 1 : -1})
         let importlist3=get(importdict,key,[])

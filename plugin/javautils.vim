@@ -49,7 +49,6 @@ if !exists('g:javautils_checkstyle_jar')
     let g:javautils_checkstyle_jar   = 'checkstyle-8.14-all.jar'
 endif
 
-let s:javahome=$JAVA_HOME . '/bin/'
 let input=expand('~') . '/.java/lib/'
 command! -bar -nargs=? JMake :call javautils#make({"param":<q-args>})
 command! -bar -nargs=? JMakeDest :call javautils#make({"dest":<q-args>})
