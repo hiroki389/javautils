@@ -11,25 +11,32 @@ set cpo&vim
 let s:f=javautils#funclib#new()
 let s:javahome=$JAVA_HOME
 let s:javaversion=fnamemodify(s:javahome,':t')
-let s:classpass=fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h')
+let s:classpath=[]
 let s:encodeTo='utf-8'
+let s:javaccmdpath=shellescape(s:javahome . '/bin/javac')
+let s:javacmdpath=shellescape(s:javahome . '/bin/java')
+if !exists('g:insertimportDict')
+    let g:insertimportDict={}
+endif
 
-function! javautils#setjavahome(javahome)
-    let s:javahome = a:javahome
-    let s:javaversion=fnamemodify(s:javahome,':t')
+function! s:getjavahome()
+    return get(g:,'javautils_javahome',s:javahome)
 endfunction
 function! s:getjavacexe()
-    return shellescape(s:javahome . '/bin/javac') . ' -cp ' . shellescape(s:getclasspath())
+    return get(g:,'javautils_javaccmdpath',s:javaccmdpath) . ' -cp ' . shellescape(s:getclasspath())
 endfunction
 function! s:getjavaexe()
-    return shellescape(s:javahome . '/bin/java') . ' -cp ' . shellescape(s:getclasspath())
+    return get(g:,'javautils_javacmdpath',s:javacmdpath) . ' -cp ' . shellescape(s:getclasspath())
+endfunction
+function! s:getjavaver()
+    return get(g:,'javautils_javaversion',s:javaversion)
 endfunction
 function! s:getclasspath()
     let ret=[]
     call add(ret,'.')
-    call add(ret, fnamemodify($JAVA_HOME . '/jre/lib/rt.jar',':p'))
-    call add(ret,fnamemodify(expand('~') . '/.java/' . s:javaversion . '/classes/',':p:h'))
-    call add(ret,s:classpass)
+    call add(ret, fnamemodify(s:getjavahome() . '/jre/lib/rt.jar',':p'))
+    call add(ret, fnamemodify(expand('~') . '/.java/' . s:getjavaver() . '/classes/',':p:h'))
+    call add(ret, fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h'))
     if exists('g:javautils_classpath')
         call extend(ret,g:javautils_classpath)
     endif
@@ -48,10 +55,10 @@ function! javautils#findbugs()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
     let package=matchstr(join(filter(readfile(expand('%:p')),{_,x->x=~'\v^\s*package\s+.+;'})),'\v^\s*package\s+\zs.+\ze;')
-    let dest=expand('~') . '/.java/' . s:javaversion . '/classes/' . substitute(package,'\.','/','g') . '/'
+    let dest=expand('~') . '/.java/' . s:getjavaver() . '/classes/' . substitute(package,'\.','/','g') . '/'
     let dest=substitute(dest,'//','/','g')
     let input=expand('~') . '/.java/lib/'
-    call javautils#make({'dest':expand('~') . '/.java/' . s:javaversion . '/classes/'})
+    call javautils#make({'dest':expand('~') . '/.java/' . s:getjavaver() . '/classes/'})
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_findbugs_jar . ' -textui -auxclasspath "' . join(s:getclasspath(),';') . '" ' .  dest . expand('%:r') . '.class'
     "echom cmd
     let o=split(system(cmd),"\n")
@@ -83,7 +90,7 @@ function! javautils#make(opt)
         let dest='.'
         let param=''
     else
-        let dest=expand('~') . '/.java/' . s:javaversion . '/classes'
+        let dest=expand('~') . '/.java/' . s:getjavaver() . '/classes'
         if !empty(get(a:opt,'dest',''))
             let dest=get(a:opt,'dest','')
         endif
@@ -240,9 +247,6 @@ function! javautils#insertimport(class)
     call s:cleanimports()
     call setpos ('.', save_cursor)
 endfunction
-if !exists('g:insertimportDict')
-    let g:insertimportDict={}
-endif
 function! javautils#loadpackages()
     let g:insertimportDict = {}
     function! s:Callback(insertimportDict, import) closure
