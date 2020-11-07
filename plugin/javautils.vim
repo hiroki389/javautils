@@ -10,7 +10,7 @@ let s:cpo_save = &cpo
 set cpo&vim
 
 if !exists('g:javautils_sortdomains')
-    let g:javautils_sortdomains      = ['java','javax','org','com','jp','com.example']
+    let g:javautils_sortdomains      = ['java','javax','jp','org','com','com.example']
 endif
 if !exists('g:javautils_getter')
     let g:javautils_getter           = "    /**\n"
@@ -49,15 +49,13 @@ if !exists('g:javautils_checkstyle_jar')
     let g:javautils_checkstyle_jar   = 'checkstyle-8.14-all.jar'
 endif
 
-let input=expand('~') . '/.java/lib/'
 command! -bar -nargs=? JMake :call javautils#make({"param":<q-args>})
-command! -bar -nargs=? JMakeDest :call javautils#make({"dest":<q-args>})
-command! JMakeThis :call javautils#make('.')
+command! -bar -nargs=1 JMakeDest :call javautils#make({"dest":<q-args>})
+command! -bar JMakeCwd :call javautils#make('')
 command! -nargs=? JExeJunit :JMake <args>|:call javautils#exejunit()
 command! -nargs=* JExe :call javautils#exe(<f-args>)
-command! JInsertImport :call javautils#insertimport(expand('<cword>'))
 command! JAutoImports :call javautils#autoimports()
-command! JLoadPackages :call javautils#loadpackages()
+command! JReloadPackages :call javautils#loadpackages(1)
 command! JOutputMethod :call javautils#outputmethod(expand('<cword>'))
 command! JCheckstyleJava :call javautils#checkstyle()
 command! JFindbugsJava :call javautils#findbugs()

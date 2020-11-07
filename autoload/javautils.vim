@@ -11,32 +11,29 @@ set cpo&vim
 let s:f=javautils#funclib#new()
 let s:javahome=$JAVA_HOME
 let s:javaversion=fnamemodify(s:javahome,':t')
-let s:classpath=[]
+let s:classpass=fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h')
 let s:encodeTo='utf-8'
-let s:javaccmdpath=shellescape(s:javahome . '/bin/javac')
-let s:javacmdpath=shellescape(s:javahome . '/bin/java')
-if !exists('g:insertimportDict')
-    let g:insertimportDict={}
-endif
+let s:insertimportDict={}
 
-function! s:getjavahome()
-    return get(g:,'javautils_javahome',s:javahome)
+function! javautils#setjavahome(javahome)
+    let s:javahome = a:javahome
+    let s:javaversion=fnamemodify(s:javahome,':t')
 endfunction
+
 function! s:getjavacexe()
-    return get(g:,'javautils_javaccmdpath',s:javaccmdpath) . ' -cp ' . shellescape(s:getclasspath())
+    return shellescape(s:javahome . '/bin/javac') . ' -cp ' . shellescape(s:getclasspath())
 endfunction
+
 function! s:getjavaexe()
-    return get(g:,'javautils_javacmdpath',s:javacmdpath) . ' -cp ' . shellescape(s:getclasspath())
+    return shellescape(s:javahome . '/bin/java') . ' -cp ' . shellescape(s:getclasspath())
 endfunction
-function! s:getjavaver()
-    return get(g:,'javautils_javaversion',s:javaversion)
-endfunction
+
 function! s:getclasspath()
     let ret=[]
     call add(ret,'.')
-    call add(ret, fnamemodify(s:getjavahome() . '/jre/lib/rt.jar',':p'))
-    call add(ret, fnamemodify(expand('~') . '/.java/' . s:getjavaver() . '/classes/',':p:h'))
-    call add(ret, fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h'))
+    call add(ret, fnamemodify(s:javahome . '/jre/lib/rt.jar',':p'))
+    call add(ret,fnamemodify(expand('~') . '/.java/' . s:javaversion . '/classes/',':p:h'))
+    call add(ret,s:classpass)
     if exists('g:javautils_classpath')
         call extend(ret,g:javautils_classpath)
     endif
@@ -48,27 +45,31 @@ function! s:getclasspath()
     endif
     return join(ret,sep)
 endfunction
+
 function! s:setclasspath()
     "let $CLASSPATH=s:getclasspath()
 endfunction
+
 function! javautils#findbugs()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
     let package=matchstr(join(filter(readfile(expand('%:p')),{_,x->x=~'\v^\s*package\s+.+;'})),'\v^\s*package\s+\zs.+\ze;')
-    let dest=expand('~') . '/.java/' . s:getjavaver() . '/classes/' . substitute(package,'\.','/','g') . '/'
+    let dest=expand('~') . '/.java/' . s:javaversion . '/classes/' . substitute(package,'\.','/','g') . '/'
     let dest=substitute(dest,'//','/','g')
     let input=expand('~') . '/.java/lib/'
-    call javautils#make({'dest':expand('~') . '/.java/' . s:getjavaver() . '/classes/'})
+    call javautils#make({'dest':expand('~') . '/.java/' . s:javaversion . '/classes/'})
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_findbugs_jar . ' -textui -auxclasspath "' . join(s:getclasspath(),';') . '" ' .  dest . expand('%:r') . '.class'
     "echom cmd
     let o=split(system(cmd),"\n")
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('Findbugs','',s:encodeTo)
+        silent 0,$delete_
         call append(0, cmd)
         call append(1, o)
     endif
 endfunction
+
 function! javautils#checkstyle()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
@@ -79,18 +80,20 @@ function! javautils#checkstyle()
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('Checkstyle','',s:encodeTo)
+        silent 0,$delete_
         call append(0, cmd)
         call append(1, o)
     endif
 endfunction
+
 function! javautils#make(opt)
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
     if type(a:opt) == v:t_string
         let dest='.'
-        let param=''
+        let param=a:opt
     else
-        let dest=expand('~') . '/.java/' . s:getjavaver() . '/classes'
+        let dest=expand('~') . '/.java/' . s:javaversion . '/classes'
         if !empty(get(a:opt,'dest',''))
             let dest=get(a:opt,'dest','')
         endif
@@ -106,10 +109,12 @@ function! javautils#make(opt)
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('CompileError','',s:encodeTo)
+        silent 0,$delete_
         call append(0, cmd)
         call append(1, o)
     endif
 endfunction
+
 function! javautils#exejunit()
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
@@ -118,9 +123,11 @@ function! javautils#exejunit()
     let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('JavaConsole', '', s:encodeTo)
+        silent 0,$delete_
         call append (0, o)
     endif
 endfunction
+
 function! javautils#exe(...)
     if expand('%:e') != "java" | return | endif
     call s:setclasspath()
@@ -135,9 +142,11 @@ function! javautils#exe(...)
     let o=map(o, {_,x->iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('JavaConsole','',s:encodeTo)
+        silent 0,$delete_
         call append(0, o)
     endif
 endfunction
+
 function! javautils#autoimports()
     if expand('%:e') != "java" | return | endif
     let srclist=map(getline(0,'$'), {_,x->substitute(x,'\v"\zs%(\\(")@=|.)+\ze"', '' , 'g')})
@@ -175,6 +184,7 @@ function! javautils#autoimports()
     "w!
     "JavaCodeFormatter
 endfunction
+
 function! javautils#outputmethod(class)
     if a:class[0] !~ '^\C[A-Z]'
         let save_cursor = getcurpos()
@@ -191,25 +201,27 @@ function! javautils#outputmethod(class)
     let o=map (o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('OutputMethod','', s:encodeTo)
+        silent 0,$delete_
         call append(0, o)
         silent %EasyAlign / /
         norm gg
     endif
 endfunction
+
 function! s:getmethod(class)
     call s:setclasspath()
-    if empty(g:insertimportDict)
-        call javautils#loadpackages()
+    if empty(s:insertimportDict)
+        call javautils#loadpackages(0)
     endif
     let absclass=a:class
-    let size=len(get(g:insertimportDict,a:class,[]))
+    let size=len(get(s:insertimportDict,a:class,[]))
     if size==1
-        let absclass=g:insertimportDict[a:class][0] . '.' . a:class
+        let absclass=s:insertimportDict[a:class][0] . '.' . a:class
     elseif size>1
         echom 'select package-> ' .a:class
-        let ans=inputlist(map(g:insertimportDict[a:class][:], {i,x->(i+1).':' .x}))
+        let ans=inputlist(map(s:insertimportDict[a:class][:], {i,x->(i+1).':' .x}))
         if ans!='' && size>=ans
-            let absclass=g:insertimportDict[a:class][ans-1] . '.' . a:class
+            let absclass=s:insertimportDict[a:class][ans-1] . '.' . a:class
         endif
         redraw
     else
@@ -218,12 +230,14 @@ function! s:getmethod(class)
     let ret = split(system(s:getjavaexe() . ' OutputMethod ' . absclass),'\n')
     return ret
 endfunction
+
 function! s:createimportclasses(cmd)
     call s:setclasspath()
     let ret=[]
     call extend(ret, split(system(a:cmd),'\n'))
     return uniq(sort(ret))
 endfunction
+
 function! s:cleanimports()
     let save_cursor = getcurpos()
     let tmp=@a
@@ -237,6 +251,7 @@ function! s:cleanimports()
     let @a=tmp
     call setpos('.', save_cursor)
 endfunction
+
 function! javautils#insertimport(class)
     if expand('%:e') != "java" | return | endif
     let save_cursor = getcurpos()
@@ -247,8 +262,9 @@ function! javautils#insertimport(class)
     call s:cleanimports()
     call setpos ('.', save_cursor)
 endfunction
-function! javautils#loadpackages()
-    let g:insertimportDict = {}
+
+function! javautils#loadpackages(reloadflg)
+    let s:insertimportDict = {}
     function! s:Callback(insertimportDict, import) closure
         let keyval = split(a:import, '\zs\.\ze[^.]*$')
         let key = get(keyval, 1,'')
@@ -259,16 +275,24 @@ function! javautils#loadpackages()
         call add(a:insertimportDict[key], value)
         call uniq(sort(a:insertimportDict[key]))
     endfunction
-    echom 'searching import classes start'
+    "echom 'searching import classes start'
     call s:setclasspath()
-    for import in uniq(sort(s:createimportclasses(s:getjavaexe() . ' ClassSearch')))
-        call s:Callback(g:insertimportDict, import)
+    if !a:reloadflg && filereadable(s:classpass . '/insertImportDict')
+        let classsearchList = readfile(s:classpass . '/insertImportDict')
+    else
+        let classsearchList = uniq(sort(s:createimportclasses(s:getjavaexe() . ' ClassSearch')))
+        call writefile(classsearchList, s:classpass . '/insertImportDict')
+    endif
+    for import in classsearchList
+        call s:Callback(s:insertimportDict, import)
     endfor
-    echom 'searching import classes end'
+
+    "echom 'searching import classes end'
 endfunction
+
 function! s:getimport(class, igjavalang)
-    if empty(g:insertimportDict)
-        call javautils#loadpackages()
+    if empty(s:insertimportDict)
+        call javautils#loadpackages(0)
     endif
     norm gg
     if a:class == '' || a:class =='*' || a:class == expand('%:r') || search('\v^\s*import.*<' . a:class . '>','c') >0
@@ -276,15 +300,15 @@ function! s:getimport(class, igjavalang)
     endif
     norm gg
     let ret=''
-    if !a:igjavalang || len(filter(get(g:insertimportDict,a:class, [])[:], {_,x->x =~ '^java\.lang$'})) ==0
-        let size=len(get(g:insertimportDict, a:class, []))
+    if !a:igjavalang || len(filter(get(s:insertimportDict,a:class, [])[:], {_,x->x =~ '^java\.lang$'})) ==0
+        let size=len(get(s:insertimportDict, a:class, []))
         if size==1
-            let ret=g:insertimportDict[a:class][0]
+            let ret=s:insertimportDict[a:class][0]
         elseif size>1
             echom 'select package-> ' .a:class
-            let ans=inputlist(map(g:insertimportDict[a:class][:], {i,x->(i+1).':'.x}))
+            let ans=inputlist(map(s:insertimportDict[a:class][:], {i,x->(i+1).':'.x}))
             if ans!='' && size>=ans
-                let ret=g:insertimportDict[a:class][ans-1]
+                let ret=s:insertimportDict[a:class][ans-1]
             endif
             redraw
         endif
@@ -294,6 +318,7 @@ function! s:getimport(class, igjavalang)
     endif
     return ret
 endfunction
+
 function! s:insertimports(imports)
     if empty(a:imports)
         return
@@ -308,8 +333,7 @@ function! s:insertimports(imports)
 
     let importdict={}
     let importlist=s:distinctimport(package,a:imports)
-    let javautils_sortdomains = {}
-    call map(g:javautils_sortdomains[:],{i,x->extend(javautils_sortdomains,{x:i})})
+    let javautils_sortdomains = g:javautils_sortdomains[:]->map({i,x->{x:i}})->reduce({acc, x -> extend(acc,x)},{})
     for imp in importlist
         let breakflg=0
         for key in sort(keys(javautils_sortdomains),{x,y->len(x) == len(y) ? 0 : len(x) < len(y) ? 1 : -1})
@@ -331,15 +355,16 @@ function! s:insertimports(imports)
     endfor
     "echom string(importdict)
     let importlist=[]
-    for [key,val] in sort(items(javautils_sortdomains),{x,y->x[1] == y[1] ? 0 : x[1] > y[1] ? 1 : -1})
+    let Comparator = {key1,key2,val1,val2 -> key1 ==# key2 ? val1 ==# val2 ? 0 : val1 ># val2 ? 1 : -1 : key1 ># key2 ? 1 : -1}
+    for [key,val] in sort(items(javautils_sortdomains),{x,y->x[1] ==# y[1] ? 0 : x[1] ># y[1] ? 1 : -1})
         let importlist3=get(importdict,key,[])
         let importlist3=map(importlist3,{i,x->[get(javautils_sortdomains,key,'999'),x]})
-        let importlist3=map(uniq(sort(importlist3,{x,y->x[0] == y[0] ? x[1] == y[1] ? 0 : x[1] > y[1] ? 1 : -1 : x[0] > y[0] ? 1 : -1})),{_,x->x[1]})
+        let importlist3=map(uniq(sort(importlist3,{x,y -> Comparator(x[0],y[0],x[1],y[1])})),{_,x -> x[1]})
         call extend(importlist,importlist3)
     endfor
     let importlist3=get(importdict,'-',[])
     let importlist3=map(importlist3,{i,x->[get(javautils_sortdomains,'-','999'),x]})
-    let importlist3=map(uniq(sort(importlist3,{x,y->x[0] == y[0] ? x[1] == y[1] ? 0 : x[1] > y[1] ? 1 : -1 : x[0] > y[0] ? 1 : -1})),{_,x->x[1]})
+    let importlist3=map(uniq(sort(importlist3,{x,y -> Comparator(x[0],y[0],x[1],y[1])})),{_,x -> x[1]})
     call extend(importlist,importlist3)
     if empty(importlist)
         echo a:imports
@@ -372,6 +397,7 @@ function! s:insertimports(imports)
         silent norm dd _
     endif
 endfunction
+
 function! s:distinctimport(package, importlist)
     let ret=a:importlist[:]
     if !empty(a:package)
@@ -389,6 +415,7 @@ function! s:distinctimport(package, importlist)
     endif
     return ret
 endfunction
+
 function! javautils#gettersetter() range
     let ret=['']
     let list = getline(a:firstline, a:lastline)
@@ -426,16 +453,19 @@ function! javautils#gettersetter() range
     call cursor(a:lastline+1,0)
     exe 'norm V' . len(ret) . 'j='
 endfunction
+
 function javautils#JCodeFormatterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd = 'eclipse -nosplash -application org.eclipse.jdt.core.JavaCodeFormatter -verbose -config ' . input . 'formatter.prefs ' . join(a:000)
     echom cmd
     echo substitute(system(cmd), "\v[\r\n]+", "\r", "g")
 endfunction
+
 function javautils#JCodeFormatter()
     if expand('%:e') != "java" | return | endif
     call javautils#JCodeFormatterFiles(expand('%:p'))
 endfunction
+
 function javautils#JStepCounterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd =s:getjavaexe() . ' -cp ' . input . g:javautils_stepcounter_jar . ' jp.sf.amateras.stepcounter.Main java ' . join(a:000)
@@ -443,10 +473,12 @@ function javautils#JStepCounterFiles(...)
     let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('JStepCounter','', s:encodeTo)
+        silent 0,$delete_
         call append(0, o)
         norm gg
     endif
 endfunction
+
 function javautils#JGoogleFormatter()
     if expand('%:e') != "java" | return | endif
     let input=expand('~') . '/.java/lib/'
@@ -454,6 +486,7 @@ function javautils#JGoogleFormatter()
     echom cmd
     exe '%!' . cmd . ' -'
 endfunction
+
 function javautils#JGoogleFormatterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd =s:getjavaexe() . ' -jar ' . input . g:javautils_google_formatter_jar . ' ' . join(a:000)
@@ -461,10 +494,12 @@ function javautils#JGoogleFormatterFiles(...)
     let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
     if !empty(o)
         call s:f.newBuffer('JGoogleFormatter','', s:encodeTo)
+        silent 0,$delete_
         call append(0, o)
         norm gg
     endif
 endfunction
+
 function javautils#JStepCounter()
     if expand('%:e') != "java" | return | endif
     call javautils#JStepCounterFiles(expand('%'))
