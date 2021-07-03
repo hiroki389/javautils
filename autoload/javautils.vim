@@ -418,16 +418,40 @@ endfunction
 
 function! javautils#gettersetter() range
     let ret=['']
-    let list = getline(a:firstline, a:lastline)
+    let ret2=['']
+    let listbase = getline(a:firstline, a:lastline)
     let str4=''
+    let list = []
+    let str = ''
+    for line in listbase
+        if line =~ '\v\s*\/\*.*\*\/'
+            let str = line
+            call add(list, str)
+        elseif line =~ '\v\s*\/\*'
+            let str = line
+        elseif line =~ '\v\s*\*\/'
+            let str .= line
+            call add(list, str)
+        elseif line =~ '\v\s*\*(\/)@!'
+            let str .= matchstr(line,'\v\s*\*\zs.*')
+        else
+            let str = line
+            call add(list, str)
+        endif
+    endfor
     for line in list
         if trim(line)==''
             continue
         endif
         if line =~ '\v\s*\/\*'
             let str4=trim(matchstr(line,'\v\s*\/\*\*?\s*\zs.+\ze\*\/'))
+            call add(ret2,'/**')
+            call add(ret2,' * ' .. str4)
+            call add(ret2,' */')
             continue
         endif
+        call add(ret2, line)
+        call add(ret2, '')
         let line = substitute(line,'\v\s*private\s+','','')
         let str3 = matchstr(line,'\v\zs\w+\ze\s*;$')
         let str1 = substitute(line,'\v\zs\s+\w+\s*;$','','')
@@ -449,9 +473,11 @@ function! javautils#gettersetter() range
         call extend(ret,split(getter,"\n",1))
         let str4=''
     endfor
-    call append(a:lastline,ret)
-    call cursor(a:lastline+1,0)
-    exe 'norm V' . len(ret) . 'j='
+    exe a:firstline .. ',' .. a:lastline .. 'd'
+    norm o
+    call append(a:firstline,ret)
+    call append(a:firstline,ret2)
+    call cursor(a:firstline+1,0)
 endfunction
 
 function javautils#JCodeFormatterFiles(...)
