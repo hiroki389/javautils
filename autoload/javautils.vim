@@ -13,6 +13,8 @@ let s:javahome=$JAVA_HOME
 let s:javaversion=fnamemodify(s:javahome,':t')
 let s:classpass=fnamemodify(expand('<sfile>:h') . '/../rplugin/java/',':p:h')
 let s:encodeTo='utf-8'
+let s:language='ja'
+let s:country='JP'
 let s:insertimportDict={}
 
 function! javautils#setjavahome(javahome)
@@ -21,11 +23,11 @@ function! javautils#setjavahome(javahome)
 endfunction
 
 function! s:getjavacexe()
-    return shellescape(s:javahome . '/bin/javac') . ' -cp ' . shellescape(s:getclasspath())
+    return shellescape(s:javahome . '/bin/javac') . ' -Xlint:none -cp ' . shellescape(s:getclasspath())
 endfunction
 
 function! s:getjavaexe()
-    return shellescape(s:javahome . '/bin/java') . ' -cp ' . shellescape(s:getclasspath())
+    return shellescape(s:javahome . '/bin/java') . ' -Duser.language=' .. s:language .. ' -Duser.country=' .. s:country .. ' -cp ' . shellescape(s:getclasspath())
 endfunction
 
 function! s:getclasspath()
@@ -61,7 +63,10 @@ function! javautils#findbugs()
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_findbugs_jar . ' -textui -auxclasspath "' . join(s:getclasspath(),';') . '" ' .  dest . expand('%:r') . '.class'
     "echom cmd
     let o=split(system(cmd),"\n")
-    let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('Findbugs','',s:encodeTo)
         silent 0,$delete_
@@ -77,7 +82,10 @@ function! javautils#checkstyle()
     let cmd= s:getjavaexe() . ' -jar ' . input . g:javautils_checkstyle_jar . ' -c ' . input . 'sun_checks.xml ' . expand('%')
     "echom cmd
     let o=split(system(cmd),"\n")
-    let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('Checkstyle','',s:encodeTo)
         silent 0,$delete_
@@ -106,8 +114,11 @@ function! javautils#make(opt)
     let cmd= s:getjavacexe() . ' ' . param . ' -encoding utf-8 -d ' . dest . ' ' . expand('%')
     "echom cmd
     let o=split(system(cmd),"\n")
-    let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
-    if !empty(o)
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
+    if !empty(o) && o[:]->filter({_,x -> x =~ 'エラー\|Error'})->len() > 0
         call s:f.newBuffer('CompileError','',s:encodeTo)
         silent 0,$delete_
         call append(0, cmd)
@@ -117,10 +128,14 @@ endfunction
 
 function! javautils#exejunit()
     if expand('%:e') != "java" | return | endif
+    let package = get(getline(0,'$')->filter({_,x -> x =~ '^\s*package'})->map({_,x -> matchstr(x, '\v.*package\s*\zs(.*)\ze\s*;') .. '.'}), 0, '')
     call s:setclasspath()
-    let cmd= s:getjavaexe() . ' org.junit.runner.JUnitCore ' . expand('%:p:t:r')
+    let cmd= s:getjavaexe() . ' org.junit.runner.JUnitCore ' .. package ..expand('%:p:t:r')
     let o=split(system(cmd), "\n")
-    let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('JavaConsole', '', s:encodeTo)
         silent 0,$delete_
@@ -139,7 +154,10 @@ function! javautils#exe(...)
         let cmd= s:getjavaexe() . ' ' . expand('%:p:t:r') . ' ' . join(a:000)
     endif
     let o=split(system(cmd), "\n")
-    let o=map(o, {_,x->iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('JavaConsole','',s:encodeTo)
         silent 0,$delete_
@@ -198,7 +216,10 @@ function! javautils#outputmethod(class)
     endif
     echom class
     let o=s:getmethod(class)
-    let o=map (o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('OutputMethod','', s:encodeTo)
         silent 0,$delete_
@@ -496,7 +517,11 @@ function javautils#JStepCounterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd =s:getjavaexe() . ' -cp ' . input . g:javautils_stepcounter_jar . ' jp.sf.amateras.stepcounter.Main java ' . join(a:000)
     echom cmd
-    let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    let o=split(system(cmd),'\n')
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('JStepCounter','', s:encodeTo)
         silent 0,$delete_
@@ -517,7 +542,11 @@ function javautils#JGoogleFormatterFiles(...)
     let input=expand('~') . '/.java/lib/'
     let cmd =s:getjavaexe() . ' -jar ' . input . g:javautils_google_formatter_jar . ' ' . join(a:000)
     echom cmd
-    let o=map(split(system(cmd),'\n'), {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    let o=split(system(cmd),'\n')
+    if g:javautils_encodeFrom != s:encodeTo
+        echom g:javautils_encodeFrom .. '->' .. s:encodeTo
+        let o=map(o, {_,x-> iconv(x,g:javautils_encodeFrom,s:encodeTo)})
+    endif
     if !empty(o)
         call s:f.newBuffer('JGoogleFormatter','', s:encodeTo)
         silent 0,$delete_
